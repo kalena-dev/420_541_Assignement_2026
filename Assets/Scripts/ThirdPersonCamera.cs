@@ -2,64 +2,51 @@ using UnityEngine;
 
 public class ThirdPersonCamera : MonoBehaviour
 {
-    [Header("Target & Positioning")]
-    [Tooltip("The player transform to follow.")]
     public Transform target;
-    [Tooltip("Offset relative to target's position (e.g., shoulder/head height).")]
-    public Vector3 targetOffset = new Vector3(0f, 1.5f, 0f);
-    [Tooltip("Distance behind the target.")]
-    public float distance = 5.0f;
-
-    [Header("Rotation & Input")]
-    [Tooltip("Sensitivity for horizontal and vertical mouse look.")]
-    public float sensitivityX = 3.0f;
-    public float sensitivityY = 3.0f;
-
-    [Header("Pitch Limits")]
-    [Tooltip("Lowest angle the camera can look down (degrees).")]
-    public float minPitch = -20.0f;
-    [Tooltip("Highest angle the camera can look up (degrees).")]
-    public float maxPitch = 80.0f;
-
-    [Header("Smoothing")]
-    [Tooltip("Smooth time for camera movement dampening.")]
-    public float smoothTime = 0.1f;
-
-    private float currentYaw = 0.0f;
-    private float currentPitch = 0.0f;
-    private Vector3 currentVelocity;
-
+    public Vector3 targetOffset = new Vector3(0f, 1.35f, 0f);
+    public float distance = 4.8f;
+    public float sensitivityX = 2.5f;
+    public float sensitivityY = 2.1f;
+    public float minPitch = -12f;
+    public float maxPitch = 65f;
+    public float smoothTime = .055f;
+    float yaw;
+    float pitch;
+    Vector3 velocity;
+    Camera lens;
     void Start()
     {
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
-
-        // Initialize orientation from current camera transform
-        Vector3 angles = transform.eulerAngles;
-        currentYaw = angles.y;
-        currentPitch = angles.x;
+        yaw = transform.eulerAngles.y;
+        pitch = transform.eulerAngles.x;
+        lens = GetComponent<Camera>();
+        if (target == null)
+        {
+            CharacterMovement player = FindAnyObjectByType<CharacterMovement>();
+            if (player != null) target = player.transform;
+        }
+        if (target != null)
+        {
+            CharacterMovement movement = target.GetComponent<CharacterMovement>();
+            if (movement != null) movement.view = transform;
+        }
     }
-
     void LateUpdate()
     {
-        if (target == null) return;
-
-        // 1. Gather mouse input
-        float mouseX = Input.GetAxis("Mouse X") * sensitivityX;
-        float mouseY = Input.GetAxis("Mouse Y") * sensitivityY;
-
-        currentYaw += mouseX;
-        // Invert vertical input so pushing mouse up tilts camera up
-        currentPitch -= mouseY;
-        currentPitch = Mathf.Clamp(currentPitch, minPitch, maxPitch);
-
-        // 2. Calculate target rotation & position
-        Quaternion targetRotation = Quaternion.Euler(currentPitch, currentYaw, 0f);
-        Vector3 focusPoint = target.position + targetOffset;
-        Vector3 desiredPosition = focusPoint - (targetRotation * Vector3.forward * distance);
-
-        // 3. Smoothly interpolate position and apply rotation
-        transform.position = Vector3.SmoothDamp(transform.position, desiredPosition, ref currentVelocity, smoothTime);
-        transform.LookAt(focusPoint);
+        if (target == null || (GameManager.Instance != null && !GameManager.Instance.IsPlaying)) return;
+        yaw += Input.GetAxis("Mouse X") * sensitivityX;
+        pitch = Mathf.Clamp(pitch - Input.GetAxis("Mouse Y") * sensitivityY, minPitch, maxPitch);
+        Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
+        Vector3 focus = target.position + targetOffset;
+        Vector3 offset = -(rotation * Vector3.forward);
+        float clearDistance = distance;
+        if (Physics.SphereCast(focus, .18f, offset, out RaycastHit hit, distance, ~(1 << 8), QueryTriggerInteraction.Ignore))
+            clearDistance = Mathf.Max(.6f, hit.distance - .12f);
+        Vector3 desired = focus + offset * clearDistance;
+        transform.position = Vector3.SmoothDamp(transform.position, desired, ref velocity, smoothTime);
+        transform.LookAt(focus);
+        CharacterMovement movement = target.GetComponent<CharacterMovement>();
+        if (lens != null && movement != null)
+            lens.fieldOfView = Mathf.Lerp(lens.fieldOfView, 66f + Mathf.Clamp(movement.PlanarSpeed - 5f, 0f, 10f) * .8f, Time.deltaTime * 5f);
     }
 }
+
