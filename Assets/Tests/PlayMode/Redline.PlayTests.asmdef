@@ -1,0 +1,6 @@
+{
+  "name": "Redline.PlayTests",
+  "references": ["Redline"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "defineConstraints": ["UNITY_INCLUDE_TESTS"]
+}
